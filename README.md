@@ -21,28 +21,7 @@ fad-01 ansible_host=fad-01.infra.ndkprd.com ansible_connection=local fad_apitoke
 
 ### Playbook Example
 
-```
----
-
-- name: Update/create FortiADC resources.
-  hosts: all
-  become: false
-  gather_facts: false
-  connection: local
-  vars:
-    # load-balance real-server entries
-    fad_slb_real_server:
-      - name: dc0.ndkprd.com
-        location: ID
-      - name: dc1.ndkprd.com
-        location: ID
-      - name: dc2.ndkprd.com
-        location: ID
-
-  roles:
-    - ndkprd.fad_slb_real_server
-
-```
+See [tests folder](tests/README.md).
 
 ### About Tags
 
