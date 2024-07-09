@@ -1,6 +1,6 @@
 ---
 
 # will invoke tasks inside the file named 'fad_slb_real_server.yaml'
-- name: Create/update GLB Data Center entries.
+- name: Create/update FAD SLB Real Server entries.
   tags: [fad_slb_real_server]
   ansible.builtin.import_tasks: fad_slb_real_server.yaml
