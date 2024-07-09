@@ -73,7 +73,7 @@
         "sdn_addr_private": "{{ fad_slb_real_server.sdn_addr_private | default('disable') }}",
         "status": "{{ fad_slb_real_server.status | default('enable') | string }}"
       }
-  register: fad_slb_real_server_post_results
+  register: fad_slb_real_server_put_results
   loop: "{{ fad_slb_real_servers }}"
   loop_control:
     loop_var: fad_slb_real_server
