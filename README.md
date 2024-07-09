@@ -21,7 +21,7 @@ fad-01 ansible_host=fad-01.infra.ndkprd.com ansible_connection=local fad_apitoke
 
 ### Playbook Example
 
-See [tests folder](tests/README.md).
+See [tests folder](tests/).
 
 ### About Tags
 
