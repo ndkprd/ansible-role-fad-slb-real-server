@@ -1,25 +1,10 @@
 ---
 
-# do a HTTP Get request against the SLB Real Server endpoint, using
-# fad_slb_real_server entry, where "name" is used as mkey, and  will
-# output the json content of the entry
-# if you want to skip this task, use --skip-tags "debug"
-# - name: Get the existing FAD SLB Real Server entries.
-#   ansible.builtin.debug:
-#     msg: >
-#       {{ (lookup('url', fad_api_endpoint.slb_real_server + '&mkey=' +
-#       fad_slb_real_server.name, validate_certs=false, split_lines=false,
-#       headers=fad_api_header) | from_json).get('payload') }}
-#   register: fad_slb_real_server_get_results
-#   loop: "{{ fad_slb_real_servers }}"
-#   loop_control:
-#     loop_var: fad_slb_real_server
-#     label: "{{ fad_slb_real_server.name }}"
-#   tags: [debug, get]
-
-# gather existing entries facts by using HTTP GET Request against the
-# SLB Real Server endpoint
-- name: Gather FAD SLB Real Server facts.
+# Gather existing entries facts by using HTTP GET Request against the
+# SLB Real Server endpoint, and then register the result into the
+# 'fad_slb_real_server_get_results' var. Failed when the HTTP return code
+# is anything other than 200 or 302.
+- name: Gather FAD SLB Real Server facts for create task.
   ansible.builtin.uri:
     method: GET
     url: "{{ fad_api_endpoint.slb_real_server }}"
@@ -32,15 +17,16 @@
   failed_when: "fad_slb_real_server_get_results.status not in [200, 302]"
   tags: [get]
 
+# Will print out the value of the collected facts registered from the
+# previous task.
 - name: Debug out FAD SLB Real Server gathered facts.
   ansible.builtin.debug:
     msg: "{{ fad_slb_real_server_get_results.json.payload }}"
   tags: [debug]
 
-# will do HTTP Get request to check if entry exists or not, if not exists,
-# will create new entry via HTTP Post via the SLB Real Server endpoint,
-# and will be skipped if entry already exist
-# will fail if the returned paylod is not 0 (success) or -15 (duplicate entry)
+# This task will check if our desired entries in our vars already exist or not
+# in the previously gathered fact. If yes, then that entry will be skipped.
+# If not exist, that entry will be created.
 - name: Add FAD SLB Real Server entry if not exist.
   ansible.builtin.uri:
     method: POST
@@ -65,16 +51,14 @@
   loop_control:
     loop_var: fad_slb_real_server
     label: "{{ fad_slb_real_server.name }}"
-  when:
-    - fad_slb_real_server.name not in fad_slb_real_server_get_results.json.payload | json_query('[].mkey')
+  when: >
+    fad_slb_real_server.name not in fad_slb_real_server_get_results.json.payload | json_query('[].mkey')
   changed_when: "fad_slb_real_server_post_results.json.payload == 0"
   failed_when: "fad_slb_real_server_post_results.json.payload not in [0, -15]"
   tags: [post]
 
-# since there's a change in the fad_slb_real_server entry, to compare the existing
-# values in the device with the data in our configured vars to check if there's any
-# entry that needs to be updated, we need to run another gather facts.
-- name: Re-gather FAD SLB Real Server facts if there's a new entry.
+# Re-gather existing entries facts to prepare for update tasks.
+- name: Re-gather FAD SLB Real Server facts for update task.
   ansible.builtin.uri:
     method: GET
     url: "{{ fad_api_endpoint.slb_real_server }}"
@@ -83,19 +67,19 @@
     return_content: "{{ fad_api_uri_params.return_content }}"
     status_code: "{{ fad_api_uri_params.status_code }}"
     headers: "{{ fad_api_header }}"
-  register: fad_slb_real_server_get_results
-  failed_when: "fad_slb_real_server_get_results.status not in [200, 302]"
-  when: fad_slb_real_server_post_results is not skipped
+  register: fad_slb_real_server_get_results_new
+  failed_when: "fad_slb_real_server_get_results_new.status not in [200, 302]"
   tags: [get]
 
+# Will print out the value of the re-gathered entries.
 - name: Debug out FAD SLB Real Server re-gathered facts.
   ansible.builtin.debug:
-    msg: "{{ fad_slb_real_server_get_results.json.payload }}"
-  when: fad_slb_real_server_post_results is not skipped
+    msg: "{{ fad_slb_real_server_get_results_new.json.payload }}"
   tags: [debug]
 
-# will do a HTTP Get request first, and then do HTTP Put request if entry already exists
-# and there's a difference between existing data in the device in our configured vars
+# For each loop, it will check if there's any entry that needs to be updated. Those entry will be
+# updated with the new data if there's a difference between the gathered facts and our desired
+# configuration in the vars.
 - name: Update FAD SLB Real Server entry if entry exists and needs update.
   ansible.builtin.uri:
     method: PUT
@@ -108,19 +92,30 @@
     body: |
       {
         "address": "{{ fad_slb_real_server.address | string }}",
-        "address6": "{{ fad_slb_real_server.address6 | default("::") | string }}",
-        "type": "{{ fad_slb_real_server.type | default("ip") }}",
+        "address6": "{{ fad_slb_real_server.address6 | default('::') | string }}",
+        "type": "{{ fad_slb_real_server.type | default('ip') }}",
         "server_type": "{{ fad_slb_real_server.server_type | default('static') | string }}",
         "sdn_addr_private": "{{ fad_slb_real_server.sdn_addr_private | default('disable') }}",
         "status": "{{ fad_slb_real_server.status | default('enable') | string }}"
       }
-  register: fad_slb_real_server_post_results
+  register: fad_slb_real_server_put_results
   loop: "{{ fad_slb_real_servers }}"
   loop_control:
     loop_var: fad_slb_real_server
     label: "{{ fad_slb_real_server.name }}"
-  when:
-    -
-  changed_when: "fad_slb_real_server_post_results.json.payload == 0"
-  failed_when: "fad_slb_real_server_post_results.json.payload not in [0, -15]"
+  when: >
+    fad_slb_real_server_get_results_new.json | json_query('payload[?mkey==`' +
+      fad_slb_real_server.name + '`].address') | join != fad_slb_real_server.address | string or
+    fad_slb_real_server_get_results_new.json | json_query('payload[?mkey==`' +
+      fad_slb_real_server.name + '`].address6') | join != fad_slb_real_server.address6 | default('::') | string or
+    fad_slb_real_server_get_results_new.json | json_query('payload[?mkey==`' +
+      fad_slb_real_server.name + '`].type') | join != fad_slb_real_server.type | default('ip') or
+    fad_slb_real_server_get_results_new.json | json_query('payload[?mkey==`' +
+      fad_slb_real_server.name + '`].server_type') | join != fad_slb_real_server.server_type | default('static') | string or
+    fad_slb_real_server_get_results_new.json | json_query('payload[?mkey==`' +
+      fad_slb_real_server.name + '`].sdn_addr_private') | join != fad_slb_real_server.sdn_addr_private | default('disable') or
+    fad_slb_real_server_get_results_new.json | json_query('payload[?mkey==`' +
+      fad_slb_real_server.name + '`].status') | join != fad_slb_real_server.status | default('enable') | string
+  changed_when: "fad_slb_real_server_put_results.json.payload == 0"
+  failed_when: "fad_slb_real_server_put_results.json.payload not in [0, -15]"
   tags: [put]
