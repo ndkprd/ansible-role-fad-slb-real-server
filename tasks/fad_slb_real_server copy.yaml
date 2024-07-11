@@ -4,38 +4,18 @@
 # fad_slb_real_server entry, where "name" is used as mkey, and  will
 # output the json content of the entry
 # if you want to skip this task, use --skip-tags "debug"
-# - name: Get the existing FAD SLB Real Server entries.
-#   ansible.builtin.debug:
-#     msg: >
-#       {{ (lookup('url', fad_api_endpoint.slb_real_server + '&mkey=' +
-#       fad_slb_real_server.name, validate_certs=false, split_lines=false,
-#       headers=fad_api_header) | from_json).get('payload') }}
-#   register: fad_slb_real_server_get_results
-#   loop: "{{ fad_slb_real_servers }}"
-#   loop_control:
-#     loop_var: fad_slb_real_server
-#     label: "{{ fad_slb_real_server.name }}"
-#   tags: [debug, get]
-
-# gather existing entries facts by using HTTP GET Request against the
-# SLB Real Server endpoint
-- name: Gather FAD SLB Real Server facts.
-  ansible.builtin.uri:
-    method: GET
-    url: "{{ fad_api_endpoint.slb_real_server }}"
-    body_format: "{{ fad_api_uri_params.body_format }}"
-    validate_certs: "{{ fad_api_uri_params.validate_certs }}"
-    return_content: "{{ fad_api_uri_params.return_content }}"
-    status_code: "{{ fad_api_uri_params.status_code }}"
-    headers: "{{ fad_api_header }}"
-  register: fad_slb_real_server_get_results
-  failed_when: "fad_slb_real_server_get_results.status not in [200, 302]"
-  tags: [get]
-
-- name: Debug out FAD SLB Real Server gathered facts.
+- name: Get the existing FAD SLB Real Server entries.
   ansible.builtin.debug:
-    msg: "{{ fad_slb_real_server_get_results.json.payload }}"
-  tags: [debug]
+    msg: >
+      {{ (lookup('url', fad_api_endpoint.slb_real_server + '&mkey=' +
+      fad_slb_real_server.name, validate_certs=false, split_lines=false,
+      headers=fad_api_header) | from_json).get('payload') }}
+  register: fad_slb_real_server_get_results
+  loop: "{{ fad_slb_real_servers }}"
+  loop_control:
+    loop_var: fad_slb_real_server
+    label: "{{ fad_slb_real_server.name }}"
+  tags: [debug, get]
 
 # will do HTTP Get request to check if entry exists or not, if not exists,
 # will create new entry via HTTP Post via the SLB Real Server endpoint,
@@ -65,34 +45,13 @@
   loop_control:
     loop_var: fad_slb_real_server
     label: "{{ fad_slb_real_server.name }}"
-  when:
-    - fad_slb_real_server.name not in fad_slb_real_server_get_results.json.payload | json_query('[].mkey')
+  when: >
+      (lookup('url', fad_api_endpoint.slb_real_server + '&mkey=' +
+      fad_slb_real_server.name, validate_certs=false, split_lines=false,
+      headers=fad_api_header) | from_json).get('payload').mkey is undefined
   changed_when: "fad_slb_real_server_post_results.json.payload == 0"
   failed_when: "fad_slb_real_server_post_results.json.payload not in [0, -15]"
   tags: [post]
-
-# since there's a change in the fad_slb_real_server entry, to compare the existing
-# values in the device with the data in our configured vars to check if there's any
-# entry that needs to be updated, we need to run another gather facts.
-- name: Re-gather FAD SLB Real Server facts if there's a new entry.
-  ansible.builtin.uri:
-    method: GET
-    url: "{{ fad_api_endpoint.slb_real_server }}"
-    body_format: "{{ fad_api_uri_params.body_format }}"
-    validate_certs: "{{ fad_api_uri_params.validate_certs }}"
-    return_content: "{{ fad_api_uri_params.return_content }}"
-    status_code: "{{ fad_api_uri_params.status_code }}"
-    headers: "{{ fad_api_header }}"
-  register: fad_slb_real_server_get_results
-  failed_when: "fad_slb_real_server_get_results.status not in [200, 302]"
-  when: fad_slb_real_server_post_results is not skipped
-  tags: [get]
-
-- name: Debug out FAD SLB Real Server re-gathered facts.
-  ansible.builtin.debug:
-    msg: "{{ fad_slb_real_server_get_results.json.payload }}"
-  when: fad_slb_real_server_post_results is not skipped
-  tags: [debug]
 
 # will do a HTTP Get request first, and then do HTTP Put request if entry already exists
 # and there's a difference between existing data in the device in our configured vars
@@ -119,8 +78,28 @@
   loop_control:
     loop_var: fad_slb_real_server
     label: "{{ fad_slb_real_server.name }}"
-  when:
-    -
+  when: >
+    (lookup('url', fad_api_endpoint.slb_real_server + '&mkey=' +
+    fad_slb_real_server.name, validate_certs=false, split_lines=false,
+    headers=fad_api_header) | from_json).get('payload').mkey is defined and
+    (lookup('url', fad_api_endpoint.slb_real_server + '&mkey=' +
+    fad_slb_real_server.name, validate_certs=false, split_lines=false,
+    headers=fad_api_header) | from_json).get('payload').address != fad_slb_real_server.address | string or
+    (lookup('url', fad_api_endpoint.slb_real_server + '&mkey=' +
+    fad_slb_real_server.name, validate_certs=false, split_lines=false,
+    headers=fad_api_header) | from_json).get('payload').address6 != fad_slb_real_server.address6 | default('::') | string or
+    (lookup('url', fad_api_endpoint.slb_real_server + '&mkey=' +
+    fad_slb_real_server.name, validate_certs=false, split_lines=false,
+    headers=fad_api_header) | from_json).get('payload').type != fad_slb_real_server.type | default('ip') or
+    (lookup('url', fad_api_endpoint.slb_real_server + '&mkey=' +
+    fad_slb_real_server.name, validate_certs=false, split_lines=false,
+    headers=fad_api_header) | from_json).get('payload').server_type != fad_slb_real_server.server_type | default('static') | string or
+    (lookup('url', fad_api_endpoint.slb_real_server + '&mkey=' +
+    fad_slb_real_server.name, validate_certs=false, split_lines=false,
+    headers=fad_api_header) | from_json).get('payload').sdn_addr_private != fad_slb_real_server.sdn_addr_private | default('disable') or
+    (lookup('url', fad_api_endpoint.slb_real_server + '&mkey=' +
+    fad_slb_real_server.name, validate_certs=false, split_lines=false,
+    headers=fad_api_header) | from_json).get('payload').status != fad_slb_real_server.status | default('enable') | string
   changed_when: "fad_slb_real_server_post_results.json.payload == 0"
   failed_when: "fad_slb_real_server_post_results.json.payload not in [0, -15]"
   tags: [put]
