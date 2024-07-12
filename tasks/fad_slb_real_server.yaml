@@ -104,18 +104,25 @@
     loop_var: fad_slb_real_server
     label: "{{ fad_slb_real_server.name }}"
   when: >
-    fad_slb_real_server_get_results_new.json | json_query('payload[?mkey==`' +
-      fad_slb_real_server.name + '`].address') | join != fad_slb_real_server.address | string or
-    fad_slb_real_server_get_results_new.json | json_query('payload[?mkey==`' +
-      fad_slb_real_server.name + '`].address6') | join != fad_slb_real_server.address6 | default('::') | string or
-    fad_slb_real_server_get_results_new.json | json_query('payload[?mkey==`' +
-      fad_slb_real_server.name + '`].type') | join != fad_slb_real_server.type | default('ip') or
-    fad_slb_real_server_get_results_new.json | json_query('payload[?mkey==`' +
-      fad_slb_real_server.name + '`].server_type') | join != fad_slb_real_server.server_type | default('static') | string or
-    fad_slb_real_server_get_results_new.json | json_query('payload[?mkey==`' +
-      fad_slb_real_server.name + '`].sdn_addr_private') | join != fad_slb_real_server.sdn_addr_private | default('disable') or
-    fad_slb_real_server_get_results_new.json | json_query('payload[?mkey==`' +
-      fad_slb_real_server.name + '`].status') | join != fad_slb_real_server.status | default('enable') | string
+    ((fad_slb_real_server_get_results_new.json | json_query('payload[?mkey==`' +
+      fad_slb_real_server.name + '`].address') | join) != (fad_slb_real_server.address | string)) or
+    ((fad_slb_real_server_get_results_new.json | json_query('payload[?mkey==`' +
+      fad_slb_real_server.name + '`].address6') | join) != (fad_slb_real_server.address6 | default('::') | string)) or
+    ((fad_slb_real_server_get_results_new.json | json_query('payload[?mkey==`' +
+      fad_slb_real_server.name + '`].type') | join) != (fad_slb_real_server.type | default('ip') | string)) or
+    ((fad_slb_real_server_get_results_new.json | json_query('payload[?mkey==`' +
+      fad_slb_real_server.name + '`].server_type') | join) != (fad_slb_real_server.server_type | default('static') | string)) or
+    ((fad_slb_real_server_get_results_new.json | json_query('payload[?mkey==`' +
+      fad_slb_real_server.name + '`].sdn_addr_private') | join) != (fad_slb_real_server.sdn_addr_private | default('disable') | string)) or
+    ((fad_slb_real_server_get_results_new.json | json_query('payload[?mkey==`' +
+      fad_slb_real_server.name + '`].status') | join) != (fad_slb_real_server.status | default('enable') | string))
   changed_when: "fad_slb_real_server_put_results.json.payload == 0"
   failed_when: "fad_slb_real_server_put_results.json.payload not in [0, -15]"
   tags: [put]
+
+# Final re-gather and print out for debugging purpose, will be skipped if you skip 'debug' tag.
+- name: Debug out FAD SLB Real Server final value after update task.
+  ansible.builtin.debug:
+    msg: >
+      {{ (lookup('url', fad_api_endpoint.slb_real_server, validate_certs=false, split_lines=false, headers=fad_api_header) | from_json).get('payload') }}
+  tags: [debug, get]
