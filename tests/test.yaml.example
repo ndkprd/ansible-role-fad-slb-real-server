@@ -9,8 +9,7 @@
   # load-balance real-server
     fad_slb_real_servers:
     # minimum example
-    - name: svr-01.site-01.ndkprd.com
-      address: 10.10.10.1
+    - address: 10.10.10.1
     # complete example
     - name: svr-02.site-01.ndkprd.com
       address: 10.10.10.2

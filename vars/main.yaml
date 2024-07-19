@@ -1,6 +1,6 @@
 ---
 
-fad_api_base_url: "https://{{ ansible_host }}/api"
+fad_api_base_url: "https://{{ ansible_host }}:{{ fad_https_port }}/api"
 
 fad_api_endpoint:
   slb_real_server: "{{ fad_api_base_url }}/load_balance_real_server?vdom={{ fad_vdom }}"
