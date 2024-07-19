@@ -4,6 +4,10 @@
 
 Ansible role to create/update Fortinet's FortiADC SLB Real Server entries using REST API.
 
+The configuration is kinda opiniated for my needs, which is to make the configuration setups is as simple as possible. In the case of this role, since I'm mainly using direct IPv4 address for the real servers, I'm using those IP address as the name too for simpler management.
+
+Still, those are still *kinda* optional. Since I'm just setting them as a "default" value, you can still overwrite them with your own value by following the "complete" example.
+
 ## Usage
 
 ### Install Role

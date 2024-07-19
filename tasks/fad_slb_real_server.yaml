@@ -2,7 +2,7 @@
 
 # Gather existing entries facts by using HTTP GET Request against the
 # SLB Real Server endpoint, and then register the result into the
-# 'fad_slb_real_server_get_results' var. Failed when the HTTP return code
+# 'real_server_gather_results' var. Failed when the HTTP return code
 # is anything other than 200 or 302.
 - name: Gather FAD SLB Real Server facts for create task.
   ansible.builtin.uri:
@@ -13,21 +13,23 @@
     return_content: "{{ fad_api_uri_params.return_content }}"
     status_code: "{{ fad_api_uri_params.status_code }}"
     headers: "{{ fad_api_header }}"
-  register: fad_slb_real_server_get_results
-  failed_when: "fad_slb_real_server_get_results.status not in [200, 302]"
+  register: real_server_gather_results
+  failed_when: "real_server_gather_results.status not in [200, 302]"
   tags: [get]
 
 # Will print out the value of the collected facts registered from the
 # previous task.
 - name: Debug out FAD SLB Real Server gathered facts.
   ansible.builtin.debug:
-    msg: "{{ fad_slb_real_server_get_results.json.payload }}"
+    msg: "{{ real_server_gather_results.json.payload }}"
   tags: [debug]
 
 # This task will check if our desired entries in our vars already exist or not
 # in the previously gathered fact. If yes, then that entry will be skipped.
 # If not exist, that entry will be created.
 - name: Add FAD SLB Real Server entry if not exist.
+  vars:
+    existing_real_servers: "{{ real_server_gather_results.json.payload | json_query('[].mkey') }}"
   ansible.builtin.uri:
     method: POST
     url: "{{ fad_api_endpoint.slb_real_server }}"
@@ -38,23 +40,23 @@
     headers: "{{ fad_api_header }}"
     body: |
       {
-        "mkey": "{{ fad_slb_real_server.name | string }}",
-        "address": "{{ fad_slb_real_server.address | string }}",
-        "address6": "{{ fad_slb_real_server.address6 | default('::') | string }}",
-        "type": "{{ fad_slb_real_server.type | default('ip') | string }}",
-        "server_type": "{{ fad_slb_real_server.server_type | default('static') | string }}",
-        "sdn_addr_private": "{{ fad_slb_real_server.disable | default('disable') | string }}",
-        "status": "{{ fad_slb_real_server.status | default('enable') | string }}"
+        "mkey": "{{ real_server.name | default(real_server.address) | string }}",
+        "address": "{{ real_server.address | string }}",
+        "address6": "{{ real_server.address6 | default('::') | string }}",
+        "type": "{{ real_server.type | default('ip') | string }}",
+        "server_type": "{{ real_server.server_type | default('static') | string }}",
+        "sdn_addr_private": "{{ real_server.disable | default('disable') | string }}",
+        "status": "{{ real_server.status | default('enable') | string }}"
       }
-  register: fad_slb_real_server_post_results
+  register: real_server_create_results
   loop: "{{ fad_slb_real_servers }}"
   loop_control:
-    loop_var: fad_slb_real_server
-    label: "{{ fad_slb_real_server.name }}"
+    loop_var: real_server
+    label: "{{ real_server.name | default(real_server.address) }}"
   when: >
-    fad_slb_real_server.name not in fad_slb_real_server_get_results.json.payload | json_query('[].mkey')
-  changed_when: "fad_slb_real_server_post_results.json.payload == 0"
-  failed_when: "fad_slb_real_server_post_results.json.payload not in [0, -15]"
+    (real_server.name | default(real_server.address)) not in existing_real_servers
+  changed_when: "real_server_create_results.json.payload == 0"
+  failed_when: "real_server_create_results.json.payload not in [0, -15]"
   tags: [post]
 
 # Re-gather existing entries facts to prepare for update tasks.
@@ -67,23 +69,25 @@
     return_content: "{{ fad_api_uri_params.return_content }}"
     status_code: "{{ fad_api_uri_params.status_code }}"
     headers: "{{ fad_api_header }}"
-  register: fad_slb_real_server_get_results_new
-  failed_when: "fad_slb_real_server_get_results_new.status not in [200, 302]"
+  register: real_server_regather_results
+  failed_when: "real_server_regather_results.status not in [200, 302]"
   tags: [get]
 
 # Will print out the value of the re-gathered entries.
 - name: Debug out FAD SLB Real Server re-gathered facts.
   ansible.builtin.debug:
-    msg: "{{ fad_slb_real_server_get_results_new.json.payload }}"
+    msg: "{{ real_server_regather_results.json.payload }}"
   tags: [debug]
 
 # For each loop, it will check if there's any entry that needs to be updated. Those entry will be
 # updated with the new data if there's a difference between the gathered facts and our desired
 # configuration in the vars.
 - name: Update FAD SLB Real Server entry if entry exists and needs update.
+  vars:
+    current_real_server_facts: "{{ real_server_regather_results.json.payload }}"
   ansible.builtin.uri:
     method: PUT
-    url: "{{ fad_api_endpoint.slb_real_server }}&mkey={{ fad_slb_real_server.name }}"
+    url: "{{ fad_api_endpoint.slb_real_server }}&mkey={{ real_server.name | default(real_server.address) }}"
     body_format: "{{ fad_api_uri_params.body_format }}"
     validate_certs: "{{ fad_api_uri_params.validate_certs }}"
     return_content: "{{ fad_api_uri_params.return_content }}"
@@ -91,31 +95,31 @@
     headers: "{{ fad_api_header }}"
     body: |
       {
-        "address": "{{ fad_slb_real_server.address | string }}",
-        "address6": "{{ fad_slb_real_server.address6 | default('::') | string }}",
-        "type": "{{ fad_slb_real_server.type | default('ip') }}",
-        "server_type": "{{ fad_slb_real_server.server_type | default('static') | string }}",
-        "sdn_addr_private": "{{ fad_slb_real_server.sdn_addr_private | default('disable') }}",
-        "status": "{{ fad_slb_real_server.status | default('enable') | string }}"
+        "address": "{{ real_server.address | string }}",
+        "address6": "{{ real_server.address6 | default('::') | string }}",
+        "type": "{{ real_server.type | default('ip') }}",
+        "server_type": "{{ real_server.server_type | default('static') | string }}",
+        "sdn_addr_private": "{{ real_server.sdn_addr_private | default('disable') | string }}",
+        "status": "{{ real_server.status | default('enable') | string }}"
       }
   register: fad_slb_real_server_put_results
   loop: "{{ fad_slb_real_servers }}"
   loop_control:
-    loop_var: fad_slb_real_server
-    label: "{{ fad_slb_real_server.name }}"
+    loop_var: real_server
+    label: "{{ real_server.name | default(real_server.address) }}"
   when: >
-    ((fad_slb_real_server_get_results_new.json | json_query('payload[?mkey==`' +
-      fad_slb_real_server.name + '`].address') | join) != (fad_slb_real_server.address | string)) or
-    ((fad_slb_real_server_get_results_new.json | json_query('payload[?mkey==`' +
-      fad_slb_real_server.name + '`].address6') | join) != (fad_slb_real_server.address6 | default('::') | string)) or
-    ((fad_slb_real_server_get_results_new.json | json_query('payload[?mkey==`' +
-      fad_slb_real_server.name + '`].type') | join) != (fad_slb_real_server.type | default('ip') | string)) or
-    ((fad_slb_real_server_get_results_new.json | json_query('payload[?mkey==`' +
-      fad_slb_real_server.name + '`].server_type') | join) != (fad_slb_real_server.server_type | default('static') | string)) or
-    ((fad_slb_real_server_get_results_new.json | json_query('payload[?mkey==`' +
-      fad_slb_real_server.name + '`].sdn_addr_private') | join) != (fad_slb_real_server.sdn_addr_private | default('disable') | string)) or
-    ((fad_slb_real_server_get_results_new.json | json_query('payload[?mkey==`' +
-      fad_slb_real_server.name + '`].status') | join) != (fad_slb_real_server.status | default('enable') | string))
+    ((current_real_server_facts | json_query('[?mkey==`' + (real_server.name | default(real_server.address)) + '`].address') | join) !=
+    (real_server.address | string)) or
+    ((current_real_server_facts | json_query('[?mkey==`' + (real_server.name | default(real_server.address)) + '`].address6') | join) !=
+    (real_server.address6 | default('::') | string)) or
+    ((current_real_server_facts | json_query('[?mkey==`' + (real_server.name | default(real_server.address)) + '`].type') | join) !=
+    (real_server.type | default('ip') | string)) or
+    ((current_real_server_facts | json_query('[?mkey==`' + (real_server.name | default(real_server.address)) + '`].server_type') | join) !=
+    (real_server.server_type | default('static') | string)) or
+    ((current_real_server_facts | json_query('[?mkey==`' + (real_server.name | default(real_server.address)) + '`].sdn_addr_private') | join) !=
+    (real_server.sdn_addr_private | default('disable') | string)) or
+    ((current_real_server_facts | json_query('[?mkey==`' + (real_server.name | default(real_server.address)) + '`].status') | join) !=
+    (real_server.status | default('enable') | string))
   changed_when: "fad_slb_real_server_put_results.json.payload == 0"
   failed_when: "fad_slb_real_server_put_results.json.payload not in [0, -15]"
   tags: [put]
