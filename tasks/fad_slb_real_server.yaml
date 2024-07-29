@@ -54,7 +54,8 @@
     loop_var: real_server
     label: "{{ real_server.name | default(real_server.address) }}"
   when: >
-    (real_server.name | default(real_server.address)) not in existing_real_servers
+    (real_server.state | default('present') == 'present') and
+    (real_server.name | default(real_server.address) not in existing_real_servers)
   changed_when: "real_server_create_results.json.payload == 0"
   failed_when: "real_server_create_results.json.payload not in [0, -15]"
   tags: [post]
@@ -85,6 +86,7 @@
 - name: Update FAD SLB Real Server entry if entry exists and needs update.
   vars:
     current_real_server_facts: "{{ real_server_regather_results.json.payload }}"
+    query: "[?mkey=='%s'].%s | [0]"
   ansible.builtin.uri:
     method: PUT
     url: "{{ fad_api_endpoint.slb_real_server }}&mkey={{ real_server.name | default(real_server.address) }}"
@@ -108,18 +110,21 @@
     loop_var: real_server
     label: "{{ real_server.name | default(real_server.address) }}"
   when: >
-    ((current_real_server_facts | json_query('[?mkey==`' + (real_server.name | default(real_server.address)) + '`].address') | join) !=
-    (real_server.address | string)) or
-    ((current_real_server_facts | json_query('[?mkey==`' + (real_server.name | default(real_server.address)) + '`].address6') | join) !=
-    (real_server.address6 | default('::') | string)) or
-    ((current_real_server_facts | json_query('[?mkey==`' + (real_server.name | default(real_server.address)) + '`].type') | join) !=
-    (real_server.type | default('ip') | string)) or
-    ((current_real_server_facts | json_query('[?mkey==`' + (real_server.name | default(real_server.address)) + '`].server_type') | join) !=
-    (real_server.server_type | default('static') | string)) or
-    ((current_real_server_facts | json_query('[?mkey==`' + (real_server.name | default(real_server.address)) + '`].sdn_addr_private') | join) !=
-    (real_server.sdn_addr_private | default('disable') | string)) or
-    ((current_real_server_facts | json_query('[?mkey==`' + (real_server.name | default(real_server.address)) + '`].status') | join) !=
-    (real_server.status | default('enable') | string))
+    (real_server.state | default('present') == 'present') and
+    (
+      (current_real_server_facts | json_query(query % (real_server.name | default(real_server.address), 'address')) !=
+        (real_server.address | string)) or
+      (current_real_server_facts | json_query(query % (real_server.name | default(real_server.address), 'address6')) !=
+        (real_server.address6 | default('::') | string)) or
+      (current_real_server_facts | json_query(query % (real_server.name | default(real_server.address), 'type')) !=
+        (real_server.type | default('ip') | string)) or
+      (current_real_server_facts | json_query(query % (real_server.name | default(real_server.address), 'server_type')) !=
+        (real_server.server_type | default('static') | string)) or
+      (current_real_server_facts | json_query(query % (real_server.name | default(real_server.address), 'sdn_addr_private')) !=
+        (real_server.sdn_addr_private | default('disable') | string)) or
+      (current_real_server_facts | json_query(query % (real_server.name | default(real_server.address), 'status')) !=
+        (real_server.status | default('enable') | string))
+    )
   changed_when: "fad_slb_real_server_put_results.json.payload == 0"
   failed_when: "fad_slb_real_server_put_results.json.payload not in [0, -15]"
   tags: [put]
@@ -130,3 +135,26 @@
     msg: >
       {{ (lookup('url', fad_api_endpoint.slb_real_server, validate_certs=false, split_lines=false, headers=fad_api_header) | from_json).get('payload') }}
   tags: [debug, get]
+
+# delete task for entries with "state = absent" entries. Will only run if you state
+# "delete_mode = true" var somewhere (pereferably in Playbook or with --extra-vars).
+# the entries MUST NOT be used by other entries to be able to be deleted.
+- name: Delete FAD SLB Real Server entries with "state = absent".
+  ansible.builtin.uri:
+    method: DELETE
+    url: "{{ fad_api_endpoint.slb_real_server }}&mkey={{ real_server.name | default(real_server.address) }}"
+    body_format: "{{ fad_api_uri_params.body_format }}"
+    validate_certs: "{{ fad_api_uri_params.validate_certs }}"
+    return_content: "{{ fad_api_uri_params.return_content }}"
+    status_code: "{{ fad_api_uri_params.status_code }}"
+    headers: "{{ fad_api_header }}"
+  register: real_server_delete_results
+  when:
+    - delete_mode
+    - real_server.state | default('present') == 'absent'
+  failed_when: "real_server_delete_results.status not in [200, 302]"
+  loop: "{{ fad_slb_real_servers }}"
+  loop_control:
+    loop_var: real_server
+    label: "{{ real_server.name | default(real_server.address) }}"
+  tags: [delete]
