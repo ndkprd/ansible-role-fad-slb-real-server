@@ -11,16 +11,16 @@
     # minimum example
     - address: 10.10.10.1
     # complete example
-    - name: svr-02.site-01.ndkprd.com
-      address: 10.10.10.2
-      address6: "::"
+    - name: svr-02.site-01.ndkprd.com # will use "address" if name not set
+      address: 10.10.10.2 # IPv4 address
+      address6: "::" # IPv6 address
       instance: ""
-      sdn_address_private: disable
-      sdn_connector: disable
+      sdn_address_private: disable # disable/enable
+      sdn_connector: disable # disable/enable
       server_type: static
-      status: enable
-      type: ip
-      fqdn: ""
+      status: enable # enable/disable
+      type: ip # ip or fqdn
+      fqdn: "" # FQDN to use if type = fqdn
 
   roles:
     - ndkprd.fad_slb_real_server
